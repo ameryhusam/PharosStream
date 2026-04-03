@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+// Reliable GitHub imports for OpenZeppelin v5.0.2 (works well in Remix)
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/ReentrancyGuard.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/access/Ownable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/Pausable.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/token/ERC20/IERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title PharosStreamPro v2.1
  * @author Developer (Human-Made) - Optimized for Pharos Atlantic
- * @notice Real-time payment streaming escrow with native/ERC20 support, 
- *         dispute resolution, extensions, cancellations, platform fees, 
- *         and batch claiming. Designed for Pharos Atlantic's ultra-high throughput.
+ * @notice Real-time payment streaming escrow with batch claiming for high-throughput chains.
  */
 contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
@@ -39,7 +38,7 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         uint256 durationAtBooking;
         uint256 totalEscrow;
         uint256 claimed;
-        string jobURI;           // IPFS link for job details / scope
+        string jobURI;
         bool closed;
         bool disputed;
     }
@@ -56,11 +55,15 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     event StreamDisputed(uint256 indexed streamId, address disputer);
     event StreamCancelled(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
 
-    constructor(address _initialTreasury, address _paymentToken) {
+    /**
+     * @dev Constructor now properly calls Ownable(initialOwner)
+     */
+    constructor(address _initialTreasury, address _paymentToken) 
+        Ownable(msg.sender)   // ← This fixes the error: passes deployer as initial owner
+    {
         require(_initialTreasury != address(0), "Treasury cannot be zero");
         treasury = _initialTreasury;
         paymentToken = IERC20(_paymentToken);
-        _transferOwnership(msg.sender);
     }
 
     modifier auth() {
@@ -93,9 +96,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     function pause() external auth { _pause(); }
     function unpause() external auth { _unpause(); }
 
-    /**
-     * @dev Admin resolves a stream (used for disputes or manual settlement).
-     */
     function resolveStream(uint256 _id, uint256 _providerPay) external auth whenNotPaused {
         Stream storage st = streams[_id];
         require(!st.closed, "Stream: Already settled");
@@ -192,7 +192,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         emit StreamCancelled(_id, earned, refund);
     }
 
-    // ====================== CALCULATION & WITHDRAW ======================
     function checkAvailable(uint256 _id) public view returns (uint256) {
         Stream storage st = streams[_id];
         if (st.closed || st.disputed) return 0;
@@ -221,10 +220,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         emit Withdraw(_id, payout);
     }
 
-    /**
-     * @dev Power-user feature: Claim multiple streams in one transaction.
-     * Optimized for Pharos Atlantic's high TPS and sub-second finality.
-     */
     function batchCollectPay(uint256[] calldata _streamIds) 
         external 
         nonReentrant 
@@ -254,7 +249,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         _transferTo(msg.sender, totalPayout);
     }
 
-    // Internal helper
     function _transferTo(address to, uint256 amount) internal {
         if (amount == 0) return;
         if (address(paymentToken) == address(0)) {
