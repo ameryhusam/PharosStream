@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>X1-PulseStream Terminal</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"></script>
+    <style>
+        body { background: #0a0a0a; color: #00ff88; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { max-width: 800px; margin: auto; border: 1px solid #00ff88; padding: 20px; box-shadow: 0 0 15px #00ff8833; }
+        h1 { text-align: center; text-transform: uppercase; letter-spacing: 5px; }
+        .card { background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #00ff88; }
+        input, button { background: #000; color: #00ff88; border: 1px solid #00ff88; padding: 10px; margin: 5px 0; width: 100%; }
+        button:hover { background: #00ff88; color: #000; cursor: pointer; }
+        .pulse-loader { height: 4px; background: #333; width: 100%; position: relative; overflow: hidden; }
+        .pulse-loader::after { content: ''; position: absolute; left: -100%; width: 100%; height: 100%; background: #00ff88; animation: pulse 1s infinite linear; }
+        @keyframes pulse { to { left: 100%; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>X1-PulseStream</h1>
+    <div class="pulse-loader"></div>
+    
+    <div id="walletSection">
+        <button onclick="connectWallet()">Connect to X1 Maculatus</button>
+        <p id="accountArea">Status: Not Connected</p>
+    </div>
+
+    <div class="card">
+        <h3>Create New Pulse (Start Payment)</h3>
+        <input type="text" id="providerAddr" placeholder="Provider Wallet Address">
+        <input type="number" id="amountXN" placeholder="Amount (XN)">
+        <input type="number" id="durationSec" placeholder="Duration (Seconds)">
+        <button onclick="startPulse()">Launch Stream</button>
+    </div>
+
+    <div class="card">
+        <h3>Live Claims</h3>
+        <input type="number" id="streamId" placeholder="Enter Stream ID">
+        <button onclick="checkBalance()">Check Available XN</button>
+        <p id="balanceOutput">Available: 0.00 XN</p>
+        <button onclick="claimXN()">Claim Pulse Now</button>
+    </div>
+</div>
+
+<script>
+    const contractAddress = "0x342B105fe1462EAc7396AeaF468902c5B8c49c35";
+    const abi = [
+        "function startPulse(address _provider, uint256 _duration) payable",
+        "function claimPulse(uint256 _id)",
+        "function availableBalance(uint256 _id) view returns (uint256)",
+        "event StreamCreated(uint256 indexed id, address indexed client, address indexed provider, uint256 amount)"
+    ];
+
+    let provider, signer, contract;
+
+    async function connectWallet() {
+        if (window.ethereum) {
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            signer = provider.getSigner();
+            contract = new ethers.Contract(contractAddress, abi, signer);
+            document.getElementById("accountArea").innerText = "Connected: " + await signer.getAddress();
+        } else { alert("Please install MetaMask!"); }
+    }
+
+    async function startPulse() {
+        const addr = document.getElementById("providerAddr").value;
+        const val = ethers.utils.parseEther(document.getElementById("amountXN").value);
+        const dur = document.getElementById("durationSec").value;
+        const tx = await contract.startPulse(addr, dur, { value: val });
+        await tx.wait();
+        alert("Stream Launched on X1!");
+    }
+
+    async function checkBalance() {
+        const id = document.getElementById("streamId").value;
+        const bal = await contract.availableBalance(id);
+        document.getElementById("balanceOutput").innerText = "Available: " + ethers.utils.formatEther(bal) + " XN";
+    }
+
+    async function claimXN() {
+        const id = document.getElementById("streamId").value;
+        const tx = await contract.claimPulse(id);
+        await tx.wait();
+        alert("XN Claimed Successfully!");
+    }
+</script>
+</body>
+</html>
