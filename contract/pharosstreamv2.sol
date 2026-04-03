@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Reliable GitHub imports for OpenZeppelin v5.0.2 (best for Remix)
+// OpenZeppelin v5.0.2 imports (reliable for Remix)
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/access/Ownable.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/Pausable.sol";
@@ -10,13 +10,14 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contr
 
 /**
  * @title PharosStreamPro v2.1 - Native PHRS Version
- * @notice Real-time payment streaming escrow optimized for Pharos Atlantic Testnet using native PHRS.
+ * @notice Real-time payment streaming escrow for Pharos Atlantic Testnet using native PHRS.
+ * Owner: 0xb656f85852f37317a5d9f60e74170b8d336510e1
  */
 contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     address public treasury;
-    uint256 public platformFeePercent = 5; // 5% default (max 10%)
+    uint256 public platformFeePercent = 5; // 5% default
     uint256 public nextServiceId = 1;
     uint256 public nextStreamId = 1;
 
@@ -45,7 +46,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     mapping(uint256 => Service) public registry;
     mapping(uint256 => Stream) public streams;
 
-    // Events
     event ServiceCreated(uint256 indexed id, string label, uint256 price);
     event PaymentStarted(uint256 indexed streamId, address indexed client, address indexed tech, string jobURI);
     event Withdraw(uint256 indexed streamId, uint256 amount);
@@ -55,10 +55,10 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     event StreamCancelled(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
 
     /**
-     * @dev Constructor with proper Ownable initialization
+     * @dev Constructor - Sets your address as owner and native PHRS as payment token
      */
     constructor(address _initialTreasury, address _paymentToken) 
-        Ownable(msg.sender)        // ← This fixes the base constructor error
+        Ownable(0xb656f85852f37317a5d9f60e74170b8d336510e1)   // Your specified owner
     {
         require(_initialTreasury != address(0), "Treasury cannot be zero");
         treasury = _initialTreasury;
@@ -127,11 +127,10 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         uint256 netAmount = s.cost - fee;
 
         if (address(paymentToken) == address(0)) {
-            // Native PHRS mode
-            require(msg.value == s.cost, "Payment mismatch - native PHRS");
+            // Native PHRS payment
+            require(msg.value == s.cost, "Incorrect PHRS amount");
             _transferTo(treasury, fee);
         } else {
-            // ERC20 mode
             require(msg.value == 0, "Use ERC20 only");
             paymentToken.safeTransferFrom(msg.sender, address(this), s.cost);
             paymentToken.safeTransfer(treasury, fee);
