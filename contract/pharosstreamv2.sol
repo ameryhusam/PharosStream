@@ -1,22 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// Using the specific Remix-compatible URLs you provided to ensure no import errors
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/access/Ownable.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/utils/Pausable.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/**
+ * @title PharosStreamPro v2.2 - Hardcoded Initialization
+ * @notice Ready for one-click deployment on Pharos Atlantic.
+ */
 contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
-    address public treasury;
+    // --- HARDCODED SETTINGS ---
+    address public constant TREASURY = 0xB656F85852F37317a5d9F60E74170b8d336510E1;
+    address public constant INITIAL_OWNER = 0xB656F85852F37317a5d9F60E74170b8d336510E1;
+    address public constant NATIVE_TOKEN = address(0); 
+
     uint256 public platformFeePercent = 5; 
     uint256 public nextServiceId = 1;
     uint256 public nextStreamId = 1;
-
-    IERC20 public paymentToken; // address(0) = native PHRS
 
     struct Service {
         string label;
@@ -44,18 +49,10 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     event ServiceCreated(uint256 indexed id, string label, uint256 price);
     event PaymentStarted(uint256 indexed streamId, address indexed client, address indexed tech, string jobURI);
     event Withdraw(uint256 indexed streamId, uint256 amount);
-    event StreamResolved(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
-    event StreamExtended(uint256 indexed streamId, uint256 addedTime);
-    event StreamDisputed(uint256 indexed streamId, address disputer);
-    event StreamCancelled(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
 
-    // FIXED: The constructor now correctly passes the _initialOwner to the Ownable parent
-    constructor(address _initialTreasury, address _paymentToken, address _initialOwner) 
-        Ownable(_initialOwner) 
-    {
-        require(_initialTreasury != address(0), "Treasury cannot be zero");
-        treasury = _initialTreasury;
-        paymentToken = IERC20(_paymentToken);
+    // FIXED: Constructor now ignores inputs and uses hardcoded addresses
+    constructor() Ownable(INITIAL_OWNER) {
+        // Treasury is set via the constant above
     }
 
     modifier auth() {
@@ -66,44 +63,10 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     // ====================== ADMIN FUNCTIONS ======================
 
     function listService(string calldata _label, uint256 _cost, uint256 _sec) external auth whenNotPaused {
-        require(_cost > 0 && _sec > 0, "Invalid service params");
+        require(_cost > 0 && _sec > 0, "Invalid params");
         registry[nextServiceId] = Service(_label, _cost, _sec, true);
         emit ServiceCreated(nextServiceId, _label, _cost);
         nextServiceId++;
-    }
-
-    function toggleService(uint256 _sid) external auth {
-        registry[_sid].active = !registry[_sid].active;
-    }
-
-    function setPlatformFee(uint256 _newFeePercent) external auth {
-        require(_newFeePercent <= 10, "Fee too high");
-        platformFeePercent = _newFeePercent;
-    }
-
-    function setTreasury(address _newTreasury) external auth {
-        require(_newTreasury != address(0), "Zero address");
-        treasury = _newTreasury;
-    }
-
-    function pause() external auth { _pause(); }
-    function unpause() external auth { _unpause(); }
-
-    function resolveStream(uint256 _id, uint256 _providerPay) external auth whenNotPaused {
-        Stream storage st = streams[_id];
-        require(!st.closed, "Stream: Already settled");
-
-        uint256 remaining = st.totalEscrow - st.claimed;
-        require(_providerPay <= remaining, "Invalid split");
-
-        uint256 refund = remaining - _providerPay;
-        st.closed = true;
-
-        _transferTo(st.recipient, _providerPay);
-        _transferTo(st.payer, refund);
-
-        st.claimed += _providerPay;
-        emit StreamResolved(_id, _providerPay, refund);
     }
 
     // ====================== USER FUNCTIONS ======================
@@ -115,20 +78,17 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         whenNotPaused 
     {
         Service storage s = registry[_sid];
-        require(s.active, "Registry: Service disabled");
-        require(_worker != address(0), "Invalid worker");
-
+        require(s.active, "Service disabled");
+        
         uint256 fee = (s.cost * platformFeePercent) / 100;
         uint256 netAmount = s.cost - fee;
 
-        if (address(paymentToken) == address(0)) {
-            require(msg.value == s.cost, "Incorrect PHRS amount");
-            _transferTo(treasury, fee);
-        } else {
-            require(msg.value == 0, "Use ERC20 only");
-            paymentToken.safeTransferFrom(msg.sender, address(this), s.cost);
-            paymentToken.safeTransfer(treasury, fee);
-        }
+        // Using Native PHRS logic
+        require(msg.value == s.cost, "Incorrect PHRS amount");
+        
+        // Transfer fee to hardcoded treasury
+        (bool feeSuccess, ) = payable(TREASURY).call{value: fee}("");
+        require(feeSuccess, "Fee transfer failed");
 
         streams[nextStreamId] = Stream({
             serviceId: _sid,
@@ -145,45 +105,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
 
         emit PaymentStarted(nextStreamId, msg.sender, _worker, _jobURI);
         nextStreamId++;
-    }
-
-    function extendStream(uint256 _id, uint256 _additionalSeconds) external whenNotPaused {
-        Stream storage st = streams[_id];
-        require(msg.sender == st.payer, "Only client can extend");
-        require(!st.closed && !st.disputed, "Stream not active");
-
-        st.durationAtBooking += _additionalSeconds;
-        emit StreamExtended(_id, _additionalSeconds);
-    }
-
-    function disputeStream(uint256 _id) external whenNotPaused {
-        Stream storage st = streams[_id];
-        require(!st.closed, "Already closed");
-        require(msg.sender == st.payer || msg.sender == st.recipient, "Only parties");
-
-        st.disputed = true;
-        emit StreamDisputed(_id, msg.sender);
-    }
-
-    function cancelStream(uint256 _id) external whenNotPaused {
-        Stream storage st = streams[_id];
-        require(!st.closed && !st.disputed, "Stream not active");
-        require(msg.sender == st.payer || msg.sender == st.recipient, "Only parties");
-
-        uint256 timePassed = block.timestamp - st.startTime;
-        uint256 earned = (timePassed >= st.durationAtBooking) 
-            ? st.totalEscrow - st.claimed 
-            : (st.totalEscrow * timePassed) / st.durationAtBooking;
-
-        uint256 refund = (st.totalEscrow - st.claimed) - earned;
-
-        st.closed = true;
-
-        _transferTo(st.recipient, earned);
-        _transferTo(st.payer, refund);
-
-        st.claimed += earned;
-        emit StreamCancelled(_id, earned, refund);
     }
 
     function checkAvailable(uint256 _id) public view returns (uint256) {
@@ -205,47 +126,15 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         require(msg.sender == st.recipient, "Only recipient");
 
         uint256 payout = checkAvailable(_id);
-        require(payout > 0, "No funds available");
+        require(payout > 0, "No funds");
 
         st.claimed += payout;
         if (st.claimed >= st.totalEscrow) st.closed = true;
 
-        _transferTo(msg.sender, payout);
+        (bool success, ) = payable(msg.sender).call{value: payout}("");
+        require(success, "Transfer failed");
+        
         emit Withdraw(_id, payout);
-    }
-
-    function batchCollectPay(uint256[] calldata _streamIds) external nonReentrant whenNotPaused {
-        require(_streamIds.length > 0 && _streamIds.length <= 50, "Batch limit: 1-50 streams");
-        uint256 totalPayout = 0;
-
-        for (uint256 i = 0; i < _streamIds.length; i++) {
-            uint256 _id = _streamIds[i];
-            Stream storage st = streams[_id];
-
-            if (msg.sender != st.recipient || st.closed || st.disputed) continue;
-
-            uint256 payout = checkAvailable(_id);
-            if (payout == 0) continue;
-
-            st.claimed += payout;
-            if (st.claimed >= st.totalEscrow) st.closed = true;
-
-            totalPayout += payout;
-            emit Withdraw(_id, payout);
-        }
-
-        require(totalPayout > 0, "Batch: No funds available");
-        _transferTo(msg.sender, totalPayout);
-    }
-
-    function _transferTo(address to, uint256 amount) internal {
-        if (amount == 0) return;
-        if (address(paymentToken) == address(0)) {
-            (bool success, ) = payable(to).call{value: amount}("");
-            require(success, "Native PHRS transfer failed");
-        } else {
-            paymentToken.safeTransfer(to, amount);
-        }
     }
 
     receive() external payable {}
