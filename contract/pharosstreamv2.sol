@@ -1,23 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.34;
+pragma solidity ^0.8.24;
 
-// Corrected imports as suggested by Remix AI (v5.0.2 with raw.githubusercontent)
+// Using the specific Remix-compatible URLs you provided to ensure no import errors
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/access/Ownable.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/utils/Pausable.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/token/ERC20/IERC20.sol";
 import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.2/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/**
- * @title PharosStreamPro v2.1 - Native PHRS Version
- * @notice Real-time payment streaming escrow for Pharos Atlantic Testnet using native PHRS.
- * Owner: 0xB656F85852F37317a5d9F60E74170b8d336510E1
- */
 contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
 
     address public treasury;
-    uint256 public platformFeePercent = 5; // 5% default
+    uint256 public platformFeePercent = 5; 
     uint256 public nextServiceId = 1;
     uint256 public nextStreamId = 1;
 
@@ -54,8 +49,9 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     event StreamDisputed(uint256 indexed streamId, address disputer);
     event StreamCancelled(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
 
-    constructor(address _initialTreasury, address _paymentToken) 
-        Ownable(0xB656F85852F37317a5d9F60E74170b8d336510E1)
+    // FIXED: The constructor now correctly passes the _initialOwner to the Ownable parent
+    constructor(address _initialTreasury, address _paymentToken, address _initialOwner) 
+        Ownable(_initialOwner) 
     {
         require(_initialTreasury != address(0), "Treasury cannot be zero");
         treasury = _initialTreasury;
@@ -68,6 +64,7 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     }
 
     // ====================== ADMIN FUNCTIONS ======================
+
     function listService(string calldata _label, uint256 _cost, uint256 _sec) external auth whenNotPaused {
         require(_cost > 0 && _sec > 0, "Invalid service params");
         registry[nextServiceId] = Service(_label, _cost, _sec, true);
@@ -110,6 +107,7 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     }
 
     // ====================== USER FUNCTIONS ======================
+
     function bookJob(uint256 _sid, address _worker, string calldata _jobURI) 
         external 
         payable 
@@ -216,13 +214,8 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         emit Withdraw(_id, payout);
     }
 
-    function batchCollectPay(uint256[] calldata _streamIds) 
-        external 
-        nonReentrant 
-        whenNotPaused 
-    {
+    function batchCollectPay(uint256[] calldata _streamIds) external nonReentrant whenNotPaused {
         require(_streamIds.length > 0 && _streamIds.length <= 50, "Batch limit: 1-50 streams");
-
         uint256 totalPayout = 0;
 
         for (uint256 i = 0; i < _streamIds.length; i++) {
