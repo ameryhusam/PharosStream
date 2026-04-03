@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.34;
 
-// OpenZeppelin v5.0.2 imports (reliable for Remix)
+// OpenZeppelin v5.0.2 imports (compatible with 0.8.34)
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/ReentrancyGuard.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/access/Ownable.sol";
 import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contracts/utils/Pausable.sol";
@@ -11,7 +11,7 @@ import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.2/contr
 /**
  * @title PharosStreamPro v2.1 - Native PHRS Version
  * @notice Real-time payment streaming escrow for Pharos Atlantic Testnet using native PHRS.
- * Owner: 0xb656f85852f37317a5d9f60e74170b8d336510e1
+ * Owner: 0xB656F85852F37317a5d9F60E74170b8d336510E1
  */
 contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     using SafeERC20 for IERC20;
@@ -54,11 +54,8 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
     event StreamDisputed(uint256 indexed streamId, address disputer);
     event StreamCancelled(uint256 indexed streamId, uint256 providerPay, uint256 clientRefund);
 
-    /**
-     * @dev Constructor - Sets your address as owner and native PHRS as payment token
-     */
     constructor(address _initialTreasury, address _paymentToken) 
-        Ownable(0xb656f85852f37317a5d9f60e74170b8d336510e1)   // Your specified owner
+        Ownable(0xB656F85852F37317a5d9F60E74170b8d336510E1)
     {
         require(_initialTreasury != address(0), "Treasury cannot be zero");
         treasury = _initialTreasury;
@@ -127,7 +124,6 @@ contract PharosStreamPro is ReentrancyGuard, Ownable, Pausable {
         uint256 netAmount = s.cost - fee;
 
         if (address(paymentToken) == address(0)) {
-            // Native PHRS payment
             require(msg.value == s.cost, "Incorrect PHRS amount");
             _transferTo(treasury, fee);
         } else {
