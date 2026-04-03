@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.34;
 
-// OpenZeppelin v5.0.3 (fixes the Natspec memory-safe-assembly warning)
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.3/contracts/utils/ReentrancyGuard.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.3/contracts/access/Ownable.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.3/contracts/utils/Pausable.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.3/contracts/token/ERC20/IERC20.sol";
-import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/v5.0.3/contracts/token/ERC20/utils/SafeERC20.sol";
+// Correct raw.githubusercontent.com imports for OpenZeppelin v5.0.3
+import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.3/contracts/utils/ReentrancyGuard.sol";
+import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.3/contracts/access/Ownable.sol";
+import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.3/contracts/utils/Pausable.sol";
+import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.3/contracts/token/ERC20/IERC20.sol";
+import "https://raw.githubusercontent.com/OpenZeppelin/openzeppelin-contracts/v5.0.3/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title PharosStreamPro v2.1 - Native PHRS Version
